@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import * as CANNON from 'cannon-es'
 import cannonDebugger from 'cannon-es-debugger'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 const canvas = document.querySelector('.webgl')
 
 class NewScene{
@@ -270,33 +271,46 @@ class NewScene{
     }
 
     InitMaze(){
-        this.mazeMaterial = new THREE.MeshBasicMaterial()
-        this.rand = 10 + Math.random() * 25;
-        this.buildingGeometry = new THREE.BoxBufferGeometry(490, 50, 10)
-        
-        this.angle = Math.random() * Math.PI * 2
-        this.radius = 10 + Math.random() * 400
-        this.x = Math.cos(this.angle) * this.radius
-        this.z = Math.sin(this.angle) * this.radius
-
-        this.building = new THREE.Mesh(this.buildingGeometry, this.mazeMaterial)
-
-        this.building.position.set(10, 0, 0)
-        this.scene.add(this.building)
+        InitMaze(){
+        this.mazeMaterial = new THREE.MeshStandardMaterial({
+            
+        })
+        this.gltfLoader = new GLTFLoader()
+        this.gltfLoader.load(
+            'maze2.glb',
+            (gltf) => {
+                gltf.scene.scale.set(80, 50, 80)
+                gltf.scene.position.set(0, -10, 0)
+                gltf.scene.traverse((child) => {
+                    if((child).isMesh){
+                        this.gltfMesh = child
+                        this.gltfMesh.receiveShadow = true
+                        this.gltfMesh.castShadow = true
+                        this.gltfMesh.material = this.mazeMaterial
+                    }
+                    
+                })
+                this.scene.add(gltf.scene)
+            }
+        )
 
         //bulding physics
         this.buildingBody = new CANNON.Body({
             mass: 0,
             material: this.defaultMaterial
         })
-        this.buildingShape = new CANNON.Box(new CANNON.Vec3(245, 25, 5))
+        //this.buildingShape = new CANNON.Box(new CANNON.Vec3(500, 20, 5))
         this.buildingBody.addShape(this.buildingShape)
-        this.buildingBody.position.set(250, 25, 500)
+        this.buildingBody.position.set(0, 25, 478)
         this.world.addBody(this.buildingBody)
-        this.objectsToUpdate.push({
-            mesh: this.building,
-            body: this.buildingBody
-        })
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 500)), new CANNON.Vec3(-475, 1, -475))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 500)), new CANNON.Vec3(475, 1, -475))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(500, 20, 5)), new CANNON.Vec3(0, 0, -950))
+
+
+        
+        
+    }
         
     }
     
