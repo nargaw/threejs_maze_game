@@ -3,8 +3,10 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import * as CANNON from 'cannon-es'
 import cannonDebugger from 'cannon-es-debugger'
-import { threeToCannon, ShapeType } from 'three-to-cannon';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
+import fragment from './shaders/fragment.glsl'
+import vertex from './shaders/vertex.glsl'
 const canvas = document.querySelector('.webgl')
 
 class NewScene{
@@ -28,10 +30,13 @@ class NewScene{
         this.tpCache = new Array()
         this.InitCarControls()
         this.InitPhysics()
-        this.InitPhysicsDebugger()
+        //this.InitPhysicsDebugger()
         this.InitEnv()
+        this.InitFireFlies()
         this.InitCamera()
         this.InitCar()
+        this.InitText()
+        this.InitSound()
         this.InitMaze()
         this.InitLights()
         this.InitRenderer()
@@ -69,6 +74,33 @@ class NewScene{
         }
     }
 
+    InitSound(){
+        this.audioOne = new Audio('scarecrow.mp3')
+        this.audioTwo = new Audio('werewolf.mp3')
+        this.playSound = () => {
+            this.audioOne.volume = Math.random() * 0.5
+            this.audioOne.currentTime = 0
+            this.audioOne.autoplay = true
+            this.audioOne.play()
+            this.audioOne.loop = true
+        }
+        setInterval(() => {
+            this.audioTwo.volume = Math.random() * 0.5
+            this.audioTwo.currentTime = 0
+            this.audioTwo.autoplay = true
+            this.audioTwo.play()  
+        }, 15000)
+        // this.playWerewoflSound = () => {
+        //     setTimeout(() =>{
+        //         this.audioTwo.volume = Math.random()
+        //         this.audioTwo.currentTime = 0
+        //         this.audioTwo.autoplay = true
+        //         this.audioTwo.play()
+        //     }, 10000)
+        // }
+        this.playSound()
+    }
+
     InitPhysics(){
         this.world = new CANNON.World()
         this.world.gravity.set(0, -40, 0)
@@ -81,6 +113,8 @@ class NewScene{
                 restitution: 0.2
             }
         )
+        this.world.broadphase = new CANNON.SAPBroadphase(this.world)
+        //this.world.allowSleep = true
         this.world.defaultContactMaterial = this.defaultContactMaterial
         this.world.addContactMaterial(this.defaultContactMaterial)
     }
@@ -96,16 +130,45 @@ class NewScene{
         )
     }
 
+    InitFireFlies(){
+        this.firefliesGeometry = new THREE.BufferGeometry()
+        this.firefliesCount = 100000
+        this.positionArray = new Float32Array(this.firefliesCount * 3)
+        this.scaleArray = new Float32Array(this.firefliesCount)
+        for(let i = 0; i < this.firefliesCount; i++){
+            this.positionArray[i * 3 + 0] = (Math.random() - 0.5) * 1000
+            this.positionArray[i * 3 + 1] = (Math.random()) * 1000
+            this.positionArray[i * 3 + 2] = (Math.random() - 0.5) * 1000
+
+            this.scaleArray[i] = Math.random()
+        }
+        this.firefliesGeometry.setAttribute('position', new THREE.BufferAttribute(this.positionArray, 3))
+        this.firefliesGeometry.setAttribute('aScale', new THREE.BufferAttribute(this.scaleArray, 1))
+
+        this.firefliesMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                u_time: { value: 0},
+                u_pixelRatio: { value: Math.min(window.devicePixelRatio, 2)},
+                u_size: { value: 1000 }
+            },
+            vertexShader: vertex,
+            fragmentShader: fragment,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        })
+        this.fireflies = new THREE.Points(this.firefliesGeometry, this.firefliesMaterial)
+        this.scene.add(this.fireflies)
+    }
+
     InitEnv(){
-        this.fog = new THREE.FogExp2(0x191919, 0.001)
+        this.fog = new THREE.FogExp2(0x1f1f1f, 0.005)
         this.scene.fog = this.fog
         this.geometry = new THREE.PlaneBufferGeometry(1100, 1100, 2, 2)
         this.material = new THREE.MeshStandardMaterial({
-            
-            })
-        this.ground = new THREE.Mesh(this.geometry, new THREE.MeshStandardMaterial({
-            color: 0xee9b00
-        }))
+            color: 0xf77f00
+        })
+        this.ground = new THREE.Mesh(this.geometry, this.material)
         this.scene.add(this.ground)
         this.ground.rotation.x = -Math.PI * 0.5
         this.ground.receiveShadow = true
@@ -123,27 +186,28 @@ class NewScene{
     InitCar(){
         this.group = new THREE.Group()
         this.carMaterial = new THREE.MeshStandardMaterial({ color: 0x780000 })
-        this.box = new THREE.Mesh(new THREE.BoxBufferGeometry(1, 1, 2),  this.carMaterial)
-        this.topBox = new THREE.Mesh(new THREE.BoxBufferGeometry(0.5, 0.5, 0.5),  this.carMaterial)
-        this.poleFront = new THREE.Mesh(new THREE.CylinderBufferGeometry(0.1, 0.1, 1.5), this.carMaterial)
-        this.poleBack = new THREE.Mesh(new THREE.CylinderBufferGeometry(0.1, 0.1, 1.5),  this.carMaterial)
+        this.box = new THREE.Mesh(new THREE.BoxBufferGeometry(5, 3, 8),  this.carMaterial)
+        this.topBox = new THREE.Mesh(new THREE.BoxBufferGeometry( 3,  3,  3),  this.carMaterial)
+        this.poleFront = new THREE.Mesh(new THREE.CylinderBufferGeometry(0.3, 0.3, 6.5), this.carMaterial)
+        this.poleBack = new THREE.Mesh(new THREE.CylinderBufferGeometry(0.3, 0.3, 6.5),  this.carMaterial)
         this.group.add(this.poleFront)
         this.group.add(this.poleBack)
         this.group.add(this.box)
         this.group.add(this.topBox)
-        this.topBox.position.set(0, 0.5, 0)
+        this.topBox.position.set(0, 1.5, 0)
         this.poleFront.rotation.x = -Math.PI * 0.5
         this.poleFront.rotation.z = -Math.PI * 0.5
-        this.poleFront.position.set(0.0, -0.5, -1.0)
+        this.poleFront.position.set(0.0, -0.5, -3.0)
         this.poleBack.rotation.x = -Math.PI * 0.5
         this.poleBack.rotation.z = -Math.PI * 0.5
-        this.poleBack.position.set(0.0, -0.5, 1.0)
+        this.poleBack.position.set(0.0, -0.5, 3.0)
+
         
         this.scene.add(this.group)
         this.group.add(this.chaseCam)
-        this.group.position.set(0, 4, 0)
+        this.group.position.set(0, 100, 900)
 
-        this.carBodyShape = new CANNON.Box(new CANNON.Vec3(1, 0.25, 1.5))
+        this.carBodyShape = new CANNON.Box(new CANNON.Vec3(1 * 3, 0.25 * 3, 1.5 * 3))
         this.carBody = new CANNON.Body({
             mass: 40,
             material: this.defaultMaterial
@@ -157,13 +221,13 @@ class NewScene{
             body: this.carBody
         })
 
-        this.wheelGeometry = new THREE.CylinderBufferGeometry(0.33, 0.33, 0.2)
+        this.wheelGeometry = new THREE.CylinderBufferGeometry(0.99, 0.99, 0.6)
         this.wheelGeometry.rotateZ(Math.PI * 0.5)
         //Left Front Wheel
         this.wheelsFL = new THREE.Mesh(this.wheelGeometry,  this.carMaterial)
         this.scene.add(this.wheelsFL)
-        this.wheelsFL.position.set(-1, 3, -1)
-        this.wheelsFLShape = new CANNON.Sphere(0.33)
+        this.wheelsFL.position.set(-3, 3, -1)
+        this.wheelsFLShape = new CANNON.Sphere(0.4 * 3)
         this.wheelsFLBody = new CANNON.Body({
             mass: 1,
             material: this.defaultMaterial
@@ -182,8 +246,8 @@ class NewScene{
         //Right Front Wheel
         this.wheelsFR = new THREE.Mesh(this.wheelGeometry,  this.carMaterial)
         this.scene.add(this.wheelsFR)
-        this.wheelsFR.position.set(1, 3, -1)
-        this.wheelsFRShape = new CANNON.Sphere(0.33)
+        this.wheelsFR.position.set(3, 3, 0)
+        this.wheelsFRShape = new CANNON.Sphere(0.4 * 3)
         this.wheelsFRBody = new CANNON.Body({
             mass: 1,
             material: this.defaultMaterial
@@ -201,8 +265,8 @@ class NewScene{
         //Left Back Wheel
         this.wheelsBL = new THREE.Mesh(this.wheelGeometry,  this.carMaterial)
         this.scene.add(this.wheelsBL)
-        this.wheelsBL.position.set(-1, 3, 1)
-        this.wheelsBLShape = new CANNON.Sphere(0.4)
+        this.wheelsBL.position.set(-3, 3, 1)
+        this.wheelsBLShape = new CANNON.Sphere(0.4 * 3)
         this.wheelsBLBody = new CANNON.Body({
             mass: 1,
             material: this.defaultMaterial
@@ -219,8 +283,8 @@ class NewScene{
         //Right Back Wheel
         this.wheelsBR = new THREE.Mesh(this.wheelGeometry,  this.carMaterial)
         this.scene.add(this.wheelsBR)
-        this.wheelsBR.position.set(1, 3, 1)
-        this.wheelsBRShape = new CANNON.Sphere(0.4)
+        this.wheelsBR.position.set(3, 3, 0.5)
+        this.wheelsBRShape = new CANNON.Sphere(0.4 * 3)
         //this.wheelsBRShape = new CANNON.Cylinder(0.4, 0.4, 0.4)
         this.wheelsBRBody = new CANNON.Body({
             mass: 1,
@@ -241,28 +305,28 @@ class NewScene{
         this.BLaxis = new CANNON.Vec3(1, 0, 0)
         this.BRaxis = new CANNON.Vec3(1, 0, 0)
         this.constraintFL = new CANNON.HingeConstraint(this.carBody, this.wheelsFLBody, {
-            pivotA: new CANNON.Vec3(-0.75, -0.5, -1),
+            pivotA: new CANNON.Vec3(-3, -0.5, -3),
             axisA: this.FLaxis,
             maxForce: 13
         })
         this.world.addConstraint(this.constraintFL)
 
         this.constraintFR = new CANNON.HingeConstraint(this.carBody, this.wheelsFRBody, {
-            pivotA: new CANNON.Vec3(0.75, -0.5, -1),
+            pivotA: new CANNON.Vec3(3, -0.5, -3),
             axisA: this.FRaxis,
             maxForce: 13
         })
         this.world.addConstraint(this.constraintFR)
 
         this.constraintBL = new CANNON.HingeConstraint(this.carBody, this.wheelsBLBody, {
-            pivotA: new CANNON.Vec3(-0.75, -0.5, 1),
+            pivotA: new CANNON.Vec3(-3, -0.5, 3),
             axisA: this.BLaxis,
             maxForce: 13
         })
         this.world.addConstraint(this.constraintBL)
 
         this.constraintBR = new CANNON.HingeConstraint(this.carBody, this.wheelsBRBody, {
-            pivotA: new CANNON.Vec3(0.75, -0.5, 1),
+            pivotA: new CANNON.Vec3(3, -0.5, 3),
             axisA: this.BRaxis,
             maxForce: 13
         })
@@ -273,7 +337,10 @@ class NewScene{
 
     InitMaze(){
         this.g 
-        this.mazeMaterial = new THREE.MeshStandardMaterial()
+        this.mazeMaterial = new THREE.MeshStandardMaterial({
+            //side: THREE.DoubleSide
+            color: 0x003049
+        })
         this.gltfLoader = new GLTFLoader()
         this.gltfLoader.load(
             'maze2.glb',
@@ -500,34 +567,90 @@ class NewScene{
         this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (44.8 * 7), 0, -155))
         this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 7/ 1.75)), new CANNON.Vec3(-475 + (44.8 * 7), 0, -490))
         this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 2/ 1.75)), new CANNON.Vec3(-475 + (44.8 * 7), 0, -815))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (44.8 * 7), 0, -928))
 
-        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 500)), new CANNON.Vec3(-475 + (45.3 * 8), 0, -475))
+        //c8
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 3/ 1.9)), new CANNON.Vec3(-475 + (45 * 8), 0, -155))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45 * 8), 0, -292))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45 * 8), 0, -700))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45 * 8), 0, -792))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45 * 8), 0, -882))
 
-        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 500)), new CANNON.Vec3(-475 + (45.3 * 9), 0, -475))
+        //c9
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45 * 9), 0, -110))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45 * 9), 0, -246))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45 * 9), 0, -656))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45 * 9), 0, -790))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45 * 9), 0, -925))
 
-        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 500)), new CANNON.Vec3(-475 + (45.3 * 10), 0, -475))
+        //c10
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45.1 * 10), 0, -20))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 2/ 1.8)), new CANNON.Vec3(-475 + (45.1 * 10), 0, -178))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45.1 * 10), 0, -290))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45.1 * 10), 0, -745))
 
-        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 500)), new CANNON.Vec3(-475 + (45.3 * 11), 0, -475))
+        //c11
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45.1 * 11), 0, -20))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 3/ 1.9)), new CANNON.Vec3(-475 + (45.1 * 11), 0, -245))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 2/ 1.8)), new CANNON.Vec3(-475 + (45.1 * 11), 0, -814))
 
-        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 500)), new CANNON.Vec3(-475 + (45.3 * 12), 0, -475))
+        //c12
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 2/ 1.8)), new CANNON.Vec3(-475 + (45.1 * 12), 0, -88))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45.1 * 12), 0, -248))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 2/ 1.8)), new CANNON.Vec3(-475 + (45.1 * 12), 0, -678))
 
-        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 500)), new CANNON.Vec3(-475 + (45.3 * 13), 0, -475))
+        //c13
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45.1 * 13), 0, -20))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 2/ 1.8)), new CANNON.Vec3(-475 + (45.1 * 13), 0, -178))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45.1 * 13), 0, -838))
 
-        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 500)), new CANNON.Vec3(-475 + (45.3 * 14), 0, -475))
+        //c14
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 2/ 1.8)), new CANNON.Vec3(-475 + (45.2 * 14), 0, -88))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45.2 * 14), 0, -248))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 7/ 2.0)), new CANNON.Vec3(-475 + (45.2 * 14), 0, -475))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45.2 * 14), 0, -883))
 
-        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 500)), new CANNON.Vec3(-475 + (45.3 * 15), 0, -475))
+        //c15
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45.3 * 15), 0, -201))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 4/ 1.9)), new CANNON.Vec3(-475 + (45.3 * 15), 0, -361))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 2/ 1.8)), new CANNON.Vec3(-475 + (45.3 * 15), 0, -587))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 2/ 1.8)), new CANNON.Vec3(-475 + (45.3 * 15), 0, -769))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45.3 * 15), 0, -930))
 
-        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 500)), new CANNON.Vec3(-475 + (45.3 * 16), 0, -475))
+        //c16
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 2/ 1.8)), new CANNON.Vec3(-475 + (45.2 * 16), 0, -316))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 6/ 1.9)), new CANNON.Vec3(-475 + (45.2 * 16), 0, -585))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.8)), new CANNON.Vec3(-475 + (45.2 * 16), 0, -788))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.8)), new CANNON.Vec3(-475 + (45.2 * 16), 0, -885))
 
-        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 500)), new CANNON.Vec3(-475 + (45.3 * 17), 0, -475))
+        //c17
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.8)), new CANNON.Vec3(-475 + (45.2 * 17), 0, -380))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 2/ 1.8)), new CANNON.Vec3(-475 + (45.2 * 17), 0, -634))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.6)), new CANNON.Vec3(-475 + (45.2 * 17), 0, -838))
 
-        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 500)), new CANNON.Vec3(-475 + (45.3 * 18), 0, -475))
+        //c18
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 2/ 1.8)), new CANNON.Vec3(-475 + (45.3 * 18), 0, -42))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.8)), new CANNON.Vec3(-475 + (45.3 * 18), 0, -201))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.8)), new CANNON.Vec3(-475 + (45.3 * 18), 0, -385))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 2/ 1.8)), new CANNON.Vec3(-475 + (45.3 * 18), 0, -587))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.8)), new CANNON.Vec3(-475 + (45.3 * 18), 0, -698))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.8)), new CANNON.Vec3(-475 + (45.3 * 18), 0, -788))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.8)), new CANNON.Vec3(-475 + (45.3 * 18), 0, -885))
 
-        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 500)), new CANNON.Vec3(-475 + (45.3 * 19), 0, -475))
+        //c19
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.8)), new CANNON.Vec3(-475 + (45.3 * 19), 0, -107))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.8)), new CANNON.Vec3(-475 + (45.3 * 19), 0, -201))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 2/ 1.8)), new CANNON.Vec3(-475 + (45.2 * 19), 0, -360))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 2/ 1.8)), new CANNON.Vec3(-475 + (45.2 * 19), 0, -722))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 2/ 1.8)), new CANNON.Vec3(-475 + (45.2 * 19), 0, -860))
 
-        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 500)), new CANNON.Vec3(-475 + (45.3 * 20), 0, -475))
-
-        
+        //c20
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.8)), new CANNON.Vec3(-475 + (45.3 * 20), 0, -65))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.8)), new CANNON.Vec3(-475 + (45.3 * 20), 0, -156))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.8)), new CANNON.Vec3(-475 + (45.2 * 20), 0, -292))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.8)), new CANNON.Vec3(-475 + (45.2 * 20), 0, -478))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 / 1.8)), new CANNON.Vec3(-475 + (45.3 * 20), 0, -610))
+        this.buildingBody.addShape(new CANNON.Box(new CANNON.Vec3(5, 20, 45 * 2/ 1.8)), new CANNON.Vec3(-475 + (45.3 * 20), 0, -768))
         
     }
     
@@ -545,34 +668,90 @@ class NewScene{
 
     InitCamera(){
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 10000)
-        this.camera.position.set(0, 500, 500 )
+        this.camera.position.set(0, 10, 20 )
         this.scene.add(this.camera)
         this.chaseCam = new THREE.Object3D()
         this.chaseCam.position.set(0, 0, 0)
         this.chaseCamPivot = new THREE.Object3D()
-        this.chaseCamPivot.position.set(0, 2, 4)
+        this.chaseCamPivot.position.set(0, 6, 12)
         this.chaseCam.add(this.chaseCamPivot)
         this.scene.add(this.chaseCam)
     }
 
+    InitText(){
+        this.fontLoader = new THREE.FontLoader()
+        this.word = 'HAPPY HALLOWEEN'
+        this.fontLoader.load(
+            './Butcherman_Regular.json',
+            (font) => {
+                this.textParameters = {
+                    font: font,
+                    size: 8.0,
+                    height: 3.2,
+                    curveSegments: 12,
+                    bevelEnabled: true,
+                    bevelThickness: 0.03,
+                    bevelSize: 0.02,
+                    bevelOffset: 0,
+                    bevelSegments: 5
+                }
+            
+                for (let i = 0; i <= this.word.length -1; i++){
+                    this.textGeometry = new THREE.TextGeometry(
+                        this.word[i],
+                        this.textParameters
+                    )
+                    this.textMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 })
+                    this.text = new THREE.Mesh(this.textGeometry, this.textMaterial)
+                    this.scene.add(this.text)
+                    this.text.castShadow = true
+                    this.textGeometry.computeBoundingBox()
+                    this.textGeometry.center()
+                    this.text.position.set(0, 0, -20)
+
+                    this.boxShape = new CANNON.Box(new CANNON.Vec3(4.0, 4.5, 5.5))
+                    this.boxBody = new CANNON.Body({
+                    mass: 0.5, 
+                    position: new CANNON.Vec3((i *12.0) - 80, 0, -60),
+                    shape: this.boxShape,
+                    material: this.ContactMaterial
+                    })
+                    this.world.addBody(this.boxBody)
+                    this.objectsToUpdate.push({
+                    mesh: this.text,
+                    body: this.boxBody
+                    }) 
+                }
+            }
+        )
+    }
+
     InitLights(){
-        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.9)
+        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.3)
         this.scene.add(this.ambientLight)
-        this.pointLight = new THREE.PointLight(0xffffff, 1.5)
+        this.pointLight = new THREE.PointLight(0xffffff, 0.5)
         this.scene.add(this.pointLight)
+        this.directionalLight = new THREE.DirectionalLight(0xffffff, 0.2)
+        this.scene.add(this.directionalLight)
+        this.directionalLight.position.set(0, 500, 500)
         this.pointLight.position.set(20, 50, 20)
         this.pointLight.castShadow = true
         this.pointLight.shadow.mapSize.width = 1024;
         this.pointLight.shadow.mapSize.height = 1024;
-        this.headLight = new THREE.PointLight(0xffffff, 1, 5, 1)
-        this.headLight.position.set(0, 0.25, -3)
+        this.headLight = new THREE.PointLight(0xffffff, 5.0,30, 1)
+        this.headLightHelper = new THREE.PointLightHelper(this.headLight, 0xff00ff, 0.3)
+        //this.group.add(this.headLightHelper)
+        this.headLight.position.set(0, -0.5,-15)
+        
         this.group.add(this.headLight)
+        this.headLight.rotation.x = Math.PI * 0.5
     }
 
     InitControls(){
         this.controls = new OrbitControls(this.camera, canvas)
         this.controls.enableDamping = true
         this.controls.update()
+        this.controls.enablePan = true
     }
 
     Resize(){
@@ -591,10 +770,10 @@ class NewScene{
             this.camera.lookAt(this.group.position)
 
             this.chaseCamPivot.getWorldPosition(this.v)
-            if (this.v.y < 1){
-                this.v.y = 1
+            if (this.v.y < 3){
+                this.v.y = 3
             }
-            //this.camera.position.lerpVectors(this.camera.position, this.v, 0.1)
+            this.camera.position.lerpVectors(this.camera.position, this.v, 0.1)
             for(this.object of this.objectsToUpdate){
                 this.object.mesh.position.copy(this.object.body.position)
                 this.object.mesh.quaternion.copy(this.object.body.quaternion)
@@ -654,6 +833,7 @@ class NewScene{
             this.constraintFL.axisA.z = this.rightVel
             this.constraintFR.axisA.z = this.rightVel
 
+            //this.material.uniforms.u_time.value += this.clock.getDelta()
             this.renderer.render(this.scene, this.camera)
             this.controls.update()
             this.Update()
