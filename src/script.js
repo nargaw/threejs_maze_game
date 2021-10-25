@@ -7,6 +7,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
 import fragment from './shaders/fragment.glsl'
 import vertex from './shaders/vertex.glsl'
+import { sRGBEncoding } from 'three'
 const canvas = document.querySelector('.webgl')
 
 class NewScene{
@@ -30,7 +31,7 @@ class NewScene{
         this.tpCache = new Array()
         this.InitCarControls()
         this.InitPhysics()
-        //this.InitPhysicsDebugger()
+        this.InitPhysicsDebugger()
         this.InitEnv()
         this.InitFireFlies()
         this.InitCamera()
@@ -38,6 +39,7 @@ class NewScene{
         this.InitText()
         this.InitSound()
         this.InitMaze()
+        this.InitPumpkins()
         this.InitLights()
         this.InitRenderer()
         this.InitControls()
@@ -78,14 +80,14 @@ class NewScene{
         this.audioOne = new Audio('scarecrow.mp3')
         this.audioTwo = new Audio('werewolf.mp3')
         this.playSound = () => {
-            this.audioOne.volume = Math.random() * 0.5
+            this.audioOne.volume = 0.05
             this.audioOne.currentTime = 0
             this.audioOne.autoplay = true
             this.audioOne.play()
             this.audioOne.loop = true
         }
         setInterval(() => {
-            this.audioTwo.volume = Math.random() * 0.5
+            this.audioTwo.volume = 0.1
             this.audioTwo.currentTime = 0
             this.audioTwo.autoplay = true
             this.audioTwo.play()  
@@ -162,7 +164,7 @@ class NewScene{
     }
 
     InitEnv(){
-        this.fog = new THREE.FogExp2(0x1f1f1f, 0.005)
+        this.fog = new THREE.FogExp2(0x000000, 0.005)
         this.scene.fog = this.fog
         this.geometry = new THREE.PlaneBufferGeometry(1100, 1100, 2, 2)
         this.material = new THREE.MeshStandardMaterial({
@@ -205,7 +207,7 @@ class NewScene{
         
         this.scene.add(this.group)
         this.group.add(this.chaseCam)
-        this.group.position.set(0, 100, 900)
+        this.group.position.set(0, 0, 450)
 
         this.carBodyShape = new CANNON.Box(new CANNON.Vec3(1 * 3, 0.25 * 3, 1.5 * 3))
         this.carBody = new CANNON.Body({
@@ -214,7 +216,7 @@ class NewScene{
         })
         this.carBody.addShape(this.carBodyShape)
         this.world.addBody(this.carBody)
-        this.carBody.position.copy(this.box.position)
+        this.carBody.position.copy(this.group.position)
         this.carBody.angularDamping = 0.9
         this.objectsToUpdate.push({
             mesh: this.group,
@@ -226,7 +228,7 @@ class NewScene{
         //Left Front Wheel
         this.wheelsFL = new THREE.Mesh(this.wheelGeometry,  this.carMaterial)
         this.scene.add(this.wheelsFL)
-        this.wheelsFL.position.set(-3, 3, -1)
+        this.wheelsFL.position.set(-3, 3, 449)
         this.wheelsFLShape = new CANNON.Sphere(0.4 * 3)
         this.wheelsFLBody = new CANNON.Body({
             mass: 1,
@@ -246,7 +248,7 @@ class NewScene{
         //Right Front Wheel
         this.wheelsFR = new THREE.Mesh(this.wheelGeometry,  this.carMaterial)
         this.scene.add(this.wheelsFR)
-        this.wheelsFR.position.set(3, 3, 0)
+        this.wheelsFR.position.set(3, 3, 449)
         this.wheelsFRShape = new CANNON.Sphere(0.4 * 3)
         this.wheelsFRBody = new CANNON.Body({
             mass: 1,
@@ -265,7 +267,7 @@ class NewScene{
         //Left Back Wheel
         this.wheelsBL = new THREE.Mesh(this.wheelGeometry,  this.carMaterial)
         this.scene.add(this.wheelsBL)
-        this.wheelsBL.position.set(-3, 3, 1)
+        this.wheelsBL.position.set(-3, 3, 450.5)
         this.wheelsBLShape = new CANNON.Sphere(0.4 * 3)
         this.wheelsBLBody = new CANNON.Body({
             mass: 1,
@@ -283,7 +285,7 @@ class NewScene{
         //Right Back Wheel
         this.wheelsBR = new THREE.Mesh(this.wheelGeometry,  this.carMaterial)
         this.scene.add(this.wheelsBR)
-        this.wheelsBR.position.set(3, 3, 0.5)
+        this.wheelsBR.position.set(3, 3, 450.5)
         this.wheelsBRShape = new CANNON.Sphere(0.4 * 3)
         //this.wheelsBRShape = new CANNON.Cylinder(0.4, 0.4, 0.4)
         this.wheelsBRBody = new CANNON.Body({
@@ -333,6 +335,49 @@ class NewScene{
         this.world.addConstraint(this.constraintBR)
         this.constraintBL.enableMotor()
         this.constraintBR.enableMotor()
+    }
+
+    InitPumpkins(){
+        this.pumpkinMaterial = new THREE.MeshStandardMaterial({ color: 0xff7518 })
+        this.loadPumpkin = () => {
+            this.gltfLoader.load(
+            'pumpkin2.glb',
+            (gltf) => {
+                gltf.scene.scale.set(5, 5, 5)
+                gltf.scene.position.set(0, 0, 0)
+                gltf.scene.traverse((child) => {
+                if((child).isMesh){
+                    this.gltfMesh = child
+                    this.gltfMesh.receiveShadow = true
+                    this.gltfMesh.castShadow = true
+                    this.gltfMesh.material = this.pumpkinMaterial
+                }
+                    
+                })
+                this.scene.add(gltf.scene)
+                gltf.scene.position.set(Math.random()*150 -75, 0, Math.random() * 100 - 50)
+
+                this.pumpkinBody = new CANNON.Body({
+                        mass: 0.2,
+                        material: this.defaultMaterial
+                    })
+                this.pumpkinShape = new CANNON.Box(new CANNON.Vec3(0.9, 0.1, 1))
+                this.pumpkinBody.addShape(this.pumpkinShape)
+                this.pumpkinBody.addShape(new CANNON.Sphere(0.3 * 2.5))
+                this.pumpkinBody.position.copy(gltf.scene.position)
+                //this.buildingBody.position.set(0, 18, 475)
+                this.world.addBody(this.pumpkinBody)
+                this.objectsToUpdate.push({
+                    mesh: gltf.scene,
+                    body: this.pumpkinBody
+                })
+            }
+        )
+        }
+        for(let i = 0; i <= 100; i++){
+            this.loadPumpkin()
+        }
+        
     }
 
     InitMaze(){
@@ -664,16 +709,17 @@ class NewScene{
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
         this.renderer.setSize(window.innerWidth, window.innerHeight)
         this.renderer.render(this.scene, this.camera)
+        this.renderer.outputEncoding = THREE.sRGBEncoding
     }
 
     InitCamera(){
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 10000)
-        this.camera.position.set(0, 10, 20 )
+        this.camera.position.set(0, 45, 15 )
         this.scene.add(this.camera)
         this.chaseCam = new THREE.Object3D()
         this.chaseCam.position.set(0, 0, 0)
         this.chaseCamPivot = new THREE.Object3D()
-        this.chaseCamPivot.position.set(0, 6, 12)
+        this.chaseCamPivot.position.set(0, 10, 12)
         this.chaseCam.add(this.chaseCamPivot)
         this.scene.add(this.chaseCam)
     }
@@ -727,31 +773,34 @@ class NewScene{
     }
 
     InitLights(){
-        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.3)
+        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.1)
         this.scene.add(this.ambientLight)
         this.pointLight = new THREE.PointLight(0xffffff, 0.5)
         this.scene.add(this.pointLight)
-        this.directionalLight = new THREE.DirectionalLight(0xffffff, 0.2)
-        this.scene.add(this.directionalLight)
+        this.directionalLight = new THREE.DirectionalLight(0xffffff, 0.1)
+        //this.scene.add(this.directionalLight)
         this.directionalLight.position.set(0, 500, 500)
         this.pointLight.position.set(20, 50, 20)
         this.pointLight.castShadow = true
         this.pointLight.shadow.mapSize.width = 1024;
         this.pointLight.shadow.mapSize.height = 1024;
-        this.headLight = new THREE.PointLight(0xffffff, 5.0,30, 1)
+        this.headLight = new THREE.PointLight(0xffffff, 1.0,30, 1)
+        this.headLight2 = new THREE.PointLight(0xffffff, 1.0,30, 1)
         this.headLightHelper = new THREE.PointLightHelper(this.headLight, 0xff00ff, 0.3)
         //this.group.add(this.headLightHelper)
-        this.headLight.position.set(0, -0.5,-15)
+        this.headLight.position.set(-1.5, 0.5,-10)
+        this.headLight2.position.set(1.5, 0.5,-10)
         
         this.group.add(this.headLight)
+        this.group.add(this.headLight2)
         this.headLight.rotation.x = Math.PI * 0.5
     }
 
     InitControls(){
         this.controls = new OrbitControls(this.camera, canvas)
         this.controls.enableDamping = true
+        //this.controls.enablePan = true
         this.controls.update()
-        this.controls.enablePan = true
     }
 
     Resize(){
@@ -767,13 +816,13 @@ class NewScene{
             this.oldElapsedTime = this.elapsedTime
             this.world.step(1/60, this.oldElapsedTime, 3)
 
-            this.camera.lookAt(this.group.position)
+            //this.camera.lookAt(this.group.position)
 
             this.chaseCamPivot.getWorldPosition(this.v)
             if (this.v.y < 3){
                 this.v.y = 3
             }
-            this.camera.position.lerpVectors(this.camera.position, this.v, 0.1)
+            //this.camera.position.lerpVectors(this.camera.position, this.v, 0.1)
             for(this.object of this.objectsToUpdate){
                 this.object.mesh.position.copy(this.object.body.position)
                 this.object.mesh.quaternion.copy(this.object.body.quaternion)
