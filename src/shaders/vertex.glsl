@@ -6,9 +6,9 @@ attribute float aScale;
 
 void main(){
     vec4 modelPosition=modelMatrix*vec4(position,1.);
-    modelPosition.y+=sin(u_time+modelPosition.x*100.)*aScale*.2;
-    modelPosition.x+=sin(u_time+modelPosition.x*100.)*aScale*.2;
-    modelPosition.z+=sin(u_time+modelPosition.z*100.)*aScale*.2;
+    modelPosition.y+=sin(u_time+modelPosition.x*20.)*aScale * 5.;
+    modelPosition.x+=sin(u_time+modelPosition.z*20.)*aScale * 5.;
+    modelPosition.z+=sin(u_time+modelPosition.z*20.)*aScale * 5.;
     
     vec4 viewPosition=viewMatrix*modelPosition;
     vec4 projectionPosition=projectionMatrix*viewPosition;

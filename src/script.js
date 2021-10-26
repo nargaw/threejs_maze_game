@@ -4,10 +4,12 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import * as CANNON from 'cannon-es'
 import cannonDebugger from 'cannon-es-debugger'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import Stats from 'stats.js'
 import fragment from './shaders/fragment.glsl'
 import vertex from './shaders/vertex.glsl'
-import { sRGBEncoding } from 'three'
 const canvas = document.querySelector('.webgl')
 
 class NewScene{
@@ -29,9 +31,10 @@ class NewScene{
         this.thrusting = false
         this.logEvents = false
         this.tpCache = new Array()
+        this.InitStats()
         this.InitCarControls()
         this.InitPhysics()
-        this.InitPhysicsDebugger()
+        //this.InitPhysicsDebugger()
         this.InitEnv()
         this.InitFireFlies()
         this.InitCamera()
@@ -39,10 +42,11 @@ class NewScene{
         this.InitText()
         this.InitSound()
         this.InitMaze()
-        this.InitPumpkins()
+        this.InitDirections()
         this.InitLights()
         this.InitRenderer()
-        this.InitControls()
+        this.InitBloom()
+        //this.InitControls()
         window.addEventListener('resize', () => {
             this.Resize()
             this.renderer.render(this.scene, this.camera)
@@ -54,6 +58,12 @@ class NewScene{
         document.addEventListener('mouseover', this.onDocumentHover, false)
         document.addEventListener('mouseout', this.onDocumentHover, false)
         this.Update()
+    }
+
+     InitStats(){
+        this.stats = new Stats()
+        this.stats.showPanel(0)
+        document.body.appendChild(this.stats.dom)
     }
 
     InitCarControls(){
@@ -87,19 +97,11 @@ class NewScene{
             this.audioOne.loop = true
         }
         setInterval(() => {
-            this.audioTwo.volume = 0.1
+            this.audioTwo.volume = 0.025
             this.audioTwo.currentTime = 0
             this.audioTwo.autoplay = true
             this.audioTwo.play()  
         }, 15000)
-        // this.playWerewoflSound = () => {
-        //     setTimeout(() =>{
-        //         this.audioTwo.volume = Math.random()
-        //         this.audioTwo.currentTime = 0
-        //         this.audioTwo.autoplay = true
-        //         this.audioTwo.play()
-        //     }, 10000)
-        // }
         this.playSound()
     }
 
@@ -134,12 +136,12 @@ class NewScene{
 
     InitFireFlies(){
         this.firefliesGeometry = new THREE.BufferGeometry()
-        this.firefliesCount = 100000
+        this.firefliesCount = 1000
         this.positionArray = new Float32Array(this.firefliesCount * 3)
         this.scaleArray = new Float32Array(this.firefliesCount)
         for(let i = 0; i < this.firefliesCount; i++){
             this.positionArray[i * 3 + 0] = (Math.random() - 0.5) * 1000
-            this.positionArray[i * 3 + 1] = (Math.random()) * 1000
+            this.positionArray[i * 3 + 1] = (Math.random()) * 50
             this.positionArray[i * 3 + 2] = (Math.random() - 0.5) * 1000
 
             this.scaleArray[i] = Math.random()
@@ -151,7 +153,7 @@ class NewScene{
             uniforms: {
                 u_time: { value: 0},
                 u_pixelRatio: { value: Math.min(window.devicePixelRatio, 2)},
-                u_size: { value: 1000 }
+                u_size: { value: 2000 }
             },
             vertexShader: vertex,
             fragmentShader: fragment,
@@ -165,7 +167,7 @@ class NewScene{
 
     InitEnv(){
         this.fog = new THREE.FogExp2(0x000000, 0.005)
-        this.scene.fog = this.fog
+        //this.scene.fog = this.fog
         this.geometry = new THREE.PlaneBufferGeometry(1100, 1100, 2, 2)
         this.material = new THREE.MeshStandardMaterial({
             color: 0xf77f00
@@ -337,48 +339,90 @@ class NewScene{
         this.constraintBR.enableMotor()
     }
 
-    InitPumpkins(){
-        this.pumpkinMaterial = new THREE.MeshStandardMaterial({ color: 0xff7518 })
-        this.loadPumpkin = () => {
+    InitDirections(){
+        this.arrowMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0xff7518,
+            flatShading: true,
+            emissive: 0xffffff,
+            emissiveIntensity: 0.25
+        })
+        
+        
             this.gltfLoader.load(
-            'pumpkin2.glb',
+            'arrow.glb',
             (gltf) => {
-                gltf.scene.scale.set(5, 5, 5)
-                gltf.scene.position.set(0, 0, 0)
+                gltf.scene.scale.set(15, 15, 15)
+                gltf.scene.position.set(0, 5, 0)
                 gltf.scene.traverse((child) => {
                 if((child).isMesh){
                     this.gltfMesh = child
                     this.gltfMesh.receiveShadow = true
                     this.gltfMesh.castShadow = true
-                    this.gltfMesh.material = this.pumpkinMaterial
+                    this.gltfMesh.material = this.arrowMaterial
                 }
                     
                 })
-                this.scene.add(gltf.scene)
-                gltf.scene.position.set(Math.random()*150 -75, 0, Math.random() * 100 - 50)
+                this.arrowClone = gltf.scene.clone()
+                this.arrowClone.scale.set(10, 15, 15)
+                this.arrowClone.position.set(-75, 0, 403)
+                this.scene.add(this.arrowClone)
 
-                this.pumpkinBody = new CANNON.Body({
-                        mass: 0.2,
-                        material: this.defaultMaterial
-                    })
-                this.pumpkinShape = new CANNON.Box(new CANNON.Vec3(0.9, 0.1, 1))
-                this.pumpkinBody.addShape(this.pumpkinShape)
-                this.pumpkinBody.addShape(new CANNON.Sphere(0.3 * 2.5))
-                this.pumpkinBody.position.copy(gltf.scene.position)
-                //this.buildingBody.position.set(0, 18, 475)
-                this.world.addBody(this.pumpkinBody)
-                this.objectsToUpdate.push({
-                    mesh: gltf.scene,
-                    body: this.pumpkinBody
-                })
+                this.arrow2Clone = gltf.scene.clone()
+                this.arrow2Clone.scale.set(10, 15, 15)
+                this.arrow2Clone.position.set(-371, 30, 150)
+                this.arrow2Clone.rotation.z = -Math.PI
+                this.arrow2Clone.rotation.y = Math.PI * 0.5
+                this.scene.add(this.arrow2Clone)
+
+                this.arrow3Clone = gltf.scene.clone()
+                this.arrow3Clone.scale.set(10, 15, 15)
+                this.arrow3Clone.position.set(-325, 0, -3)
+                this.scene.add(this.arrow3Clone)
+
+                this.arrow4Clone = gltf.scene.clone()
+                this.arrow4Clone.scale.set(10, 15, 15)
+                this.arrow4Clone.rotation.y = -Math.PI * 0.5
+                this.arrow4Clone.position.set(-358, 0, -210)
+                this.scene.add(this.arrow4Clone)
+
+                this.arrow5Clone = gltf.scene.clone()
+                this.arrow5Clone.scale.set(10, 15, 15)
+                this.arrow5Clone.rotation.y = -Math.PI * 0.5
+                this.arrow5Clone.position.set(-85, 5, -335)
+                this.scene.add(this.arrow5Clone)
+
+                this.arrow6Clone = gltf.scene.clone()
+                this.arrow6Clone.scale.set(10, 15, 15)
+                this.arrow6Clone.position.set(310, 5, -265)
+                //this.arrow6Clone.rotation.x = -Math.PI
+                this.arrow6Clone.rotation.y = -Math.PI
+                this.scene.add(this.arrow6Clone)
+
+                this.arrow7Clone = gltf.scene.clone()
+                this.arrow7Clone.scale.set(10, 15, 15)
+                this.arrow7Clone.position.set(395, 25, -84)
+                this.arrow7Clone.rotation.z = Math.PI
+                this.arrow7Clone.rotation.y = -Math.PI
+                this.scene.add(this.arrow7Clone)
+
+                this.arrow8Clone = gltf.scene.clone()
+                this.arrow8Clone.scale.set(10, 15, 15)
+                this.arrow8Clone.position.set(275, 30, 145)
+                this.arrow8Clone.rotation.z = Math.PI
+                this.arrow8Clone.rotation.y = -Math.PI
+                this.scene.add(this.arrow8Clone)
+
+                this.arrow9Clone = gltf.scene.clone()
+                this.arrow9Clone.scale.set(10, 15, 15)
+                this.arrow9Clone.position.set(325, 25, 325)
+                this.arrow9Clone.rotation.z = Math.PI
+                this.arrow9Clone.rotation.y = -Math.PI
+                this.scene.add(this.arrow9Clone)
+
             }
         )
         }
-        for(let i = 0; i <= 100; i++){
-            this.loadPumpkin()
-        }
         
-    }
 
     InitMaze(){
         this.g 
@@ -708,13 +752,13 @@ class NewScene{
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
         this.renderer.setSize(window.innerWidth, window.innerHeight)
-        this.renderer.render(this.scene, this.camera)
+        //this.renderer.render(this.scene, this.camera)
         this.renderer.outputEncoding = THREE.sRGBEncoding
     }
 
     InitCamera(){
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 10000)
-        this.camera.position.set(0, 45, 15 )
+        this.camera.position.set(0, 505, 250 )
         this.scene.add(this.camera)
         this.chaseCam = new THREE.Object3D()
         this.chaseCam.position.set(0, 0, 0)
@@ -726,7 +770,8 @@ class NewScene{
 
     InitText(){
         this.fontLoader = new THREE.FontLoader()
-        this.word = 'HAPPY HALLOWEEN'
+        this.word = 'HAPPY'
+        this.word2 = 'HALLOWEEN'
         this.fontLoader.load(
             './Butcherman_Regular.json',
             (font) => {
@@ -742,6 +787,33 @@ class NewScene{
                     bevelSegments: 5
                 }
             
+                for (let i = 0; i <= this.word2.length -1; i++){
+                    this.textGeometry = new THREE.TextGeometry(
+                        this.word2[i],
+                        this.textParameters
+                    )
+                    this.textMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 })
+                    this.text = new THREE.Mesh(this.textGeometry, this.textMaterial)
+                    this.scene.add(this.text)
+                    this.text.castShadow = true
+                    this.textGeometry.computeBoundingBox()
+                    this.textGeometry.center()
+                    this.text.position.set(0, 0, 0)
+
+                    this.boxShape = new CANNON.Box(new CANNON.Vec3(4.0, 4.25, 5.5))
+                    this.boxBody = new CANNON.Body({
+                    mass: 0.1, 
+                    position: new CANNON.Vec3((i *8.5) , 10, i * 5),
+                    shape: this.boxShape,
+                    material: this.ContactMaterial
+                    })
+                    this.world.addBody(this.boxBody)
+                    this.boxBody.allowSleep = true
+                    this.objectsToUpdate.push({
+                    mesh: this.text,
+                    body: this.boxBody
+                    }) 
+                }
                 for (let i = 0; i <= this.word.length -1; i++){
                     this.textGeometry = new THREE.TextGeometry(
                         this.word[i],
@@ -753,16 +825,17 @@ class NewScene{
                     this.text.castShadow = true
                     this.textGeometry.computeBoundingBox()
                     this.textGeometry.center()
-                    this.text.position.set(0, 0, -20)
+                    this.text.position.set(0, 0, 0)
 
-                    this.boxShape = new CANNON.Box(new CANNON.Vec3(4.0, 4.5, 5.5))
+                    this.boxShape = new CANNON.Box(new CANNON.Vec3(4.0, 4.25, 3.0))
                     this.boxBody = new CANNON.Body({
-                    mass: 0.5, 
-                    position: new CANNON.Vec3((i *12.0) - 80, 0, -60),
+                    mass: 0.1, 
+                    position: new CANNON.Vec3((i * 8.5) - 50, 10, i * -5 + 25),
                     shape: this.boxShape,
                     material: this.ContactMaterial
                     })
                     this.world.addBody(this.boxBody)
+                    this.boxBody.allowSleep = true
                     this.objectsToUpdate.push({
                     mesh: this.text,
                     body: this.boxBody
@@ -775,54 +848,80 @@ class NewScene{
     InitLights(){
         this.ambientLight = new THREE.AmbientLight(0xffffff, 0.1)
         this.scene.add(this.ambientLight)
-        this.pointLight = new THREE.PointLight(0xffffff, 0.5)
+        this.pointLight = new THREE.PointLight(0xffffff, 1)
         this.scene.add(this.pointLight)
-        this.directionalLight = new THREE.DirectionalLight(0xffffff, 0.1)
+        //this.directionalLight = new THREE.DirectionalLight(0xffffff, 0.1)
         //this.scene.add(this.directionalLight)
-        this.directionalLight.position.set(0, 500, 500)
+        //this.directionalLight.position.set(0, 500, 500)
         this.pointLight.position.set(20, 50, 20)
         this.pointLight.castShadow = true
-        this.pointLight.shadow.mapSize.width = 1024;
-        this.pointLight.shadow.mapSize.height = 1024;
+        this.pointLight.shadow.mapSize.width = 512;
+        this.pointLight.shadow.mapSize.height = 512;
         this.headLight = new THREE.PointLight(0xffffff, 1.0,30, 1)
         this.headLight2 = new THREE.PointLight(0xffffff, 1.0,30, 1)
         this.headLightHelper = new THREE.PointLightHelper(this.headLight, 0xff00ff, 0.3)
         //this.group.add(this.headLightHelper)
         this.headLight.position.set(-1.5, 0.5,-10)
         this.headLight2.position.set(1.5, 0.5,-10)
+        //this.rectAreaLight = new THREE.RectAreaLight(0xffffff, 2.5, 200, 50)
+        //this.scene.add(this.rectAreaLight)
+        //this.rectAreaLight.position.set(0, 0, 50)
         
         this.group.add(this.headLight)
         this.group.add(this.headLight2)
         this.headLight.rotation.x = Math.PI * 0.5
     }
 
+    InitBloom(){
+        this.params = {
+            exposure: 0.5,
+            bloomStrength: 0.5,
+            bloomThreshold: 0.1,
+            bloomRadius: 0.01
+        }
+        this.renderScene = new RenderPass(this.scene, this.camera)
+        this.bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.5, 0.5, 0.85)
+        this.bloomPass.threshold = this.params.bloomThreshold
+        this.bloomPass.strength = this.params.bloomStrength
+        this.bloomPass.radius = this.params.bloomRadius
+
+        this.composer = new EffectComposer(this.renderer)
+        this.composer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+        this.composer.setSize(window.innerWidth, window.innerHeight)
+        this.composer.addPass(this.renderScene)
+        this.composer.addPass(this.bloomPass)
+        this.composer.render()
+    }
+
     InitControls(){
         this.controls = new OrbitControls(this.camera, canvas)
         this.controls.enableDamping = true
         //this.controls.enablePan = true
-        this.controls.update()
+        //this.controls.update()
     }
 
     Resize(){
         this.camera.aspect = window.innerWidth / window.innerHeight
         this.camera.updateProjectionMatrix()
         this.renderer.setSize(window.innerWidth, window.innerHeight)
+        this.composer.setSize(window.innerWidth, window.innerHeight)
     }
 
     Update(){
-        requestAnimationFrame(() => {     
+        requestAnimationFrame(() => {
+            this.stats.begin()     
             this.elapsedTime = this.clock.getElapsedTime()
             this.deltaTime = this.elapsedTime - this.oldElapsedTime
             this.oldElapsedTime = this.elapsedTime
             this.world.step(1/60, this.oldElapsedTime, 3)
 
-            //this.camera.lookAt(this.group.position)
+            this.camera.lookAt(this.group.position)
 
             this.chaseCamPivot.getWorldPosition(this.v)
-            if (this.v.y < 3){
-                this.v.y = 3
+            if (this.v.y < 1){
+                this.v.y = 1
             }
-            //this.camera.position.lerpVectors(this.camera.position, this.v, 0.1)
+            this.camera.position.lerpVectors(this.camera.position, this.v, 0.1)
             for(this.object of this.objectsToUpdate){
                 this.object.mesh.position.copy(this.object.body.position)
                 this.object.mesh.quaternion.copy(this.object.body.quaternion)
@@ -882,9 +981,12 @@ class NewScene{
             this.constraintFL.axisA.z = this.rightVel
             this.constraintFR.axisA.z = this.rightVel
 
-            //this.material.uniforms.u_time.value += this.clock.getDelta()
-            this.renderer.render(this.scene, this.camera)
-            this.controls.update()
+            this.firefliesMaterial.uniforms.u_time.value += this.clock.getDelta()
+            
+            //this.renderer.render(this.scene, this.camera)
+            this.composer.render()
+            //this.controls.update()
+            this.stats.end()
             this.Update()
         })  
     }
