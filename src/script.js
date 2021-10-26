@@ -34,7 +34,7 @@ class NewScene{
         this.InitStats()
         this.InitCarControls()
         this.InitPhysics()
-        //this.InitPhysicsDebugger()
+        this.InitPhysicsDebugger()
         this.InitEnv()
         this.InitFireFlies()
         this.InitCamera()
@@ -45,8 +45,7 @@ class NewScene{
         this.InitDirections()
         this.InitLights()
         this.InitRenderer()
-        this.InitBloom()
-        //this.InitControls()
+        this.InitControls()
         window.addEventListener('resize', () => {
             this.Resize()
             this.renderer.render(this.scene, this.camera)
@@ -136,7 +135,7 @@ class NewScene{
 
     InitFireFlies(){
         this.firefliesGeometry = new THREE.BufferGeometry()
-        this.firefliesCount = 1000
+        this.firefliesCount = 10000
         this.positionArray = new Float32Array(this.firefliesCount * 3)
         this.scaleArray = new Float32Array(this.firefliesCount)
         for(let i = 0; i < this.firefliesCount; i++){
@@ -166,11 +165,11 @@ class NewScene{
     }
 
     InitEnv(){
-        this.fog = new THREE.FogExp2(0x000000, 0.005)
-        //this.scene.fog = this.fog
+        this.fog = new THREE.FogExp2(0x1f1f1f, 0.005)
+        this.scene.fog = this.fog
         this.geometry = new THREE.PlaneBufferGeometry(1100, 1100, 2, 2)
         this.material = new THREE.MeshStandardMaterial({
-            color: 0xf77f00
+            color: 0x241f29
         })
         this.ground = new THREE.Mesh(this.geometry, this.material)
         this.scene.add(this.ground)
@@ -340,11 +339,11 @@ class NewScene{
     }
 
     InitDirections(){
-        this.arrowMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0xff7518,
+        this.arrowMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xee9b00,
             flatShading: true,
-            emissive: 0xffffff,
-            emissiveIntensity: 0.25
+            metalness: 0.5,
+            roughness: 0.1
         })
         
         
@@ -366,6 +365,7 @@ class NewScene{
                 this.arrowClone.scale.set(10, 15, 15)
                 this.arrowClone.position.set(-75, 0, 403)
                 this.scene.add(this.arrowClone)
+                
 
                 this.arrow2Clone = gltf.scene.clone()
                 this.arrow2Clone.scale.set(10, 15, 15)
@@ -425,7 +425,6 @@ class NewScene{
         
 
     InitMaze(){
-        this.g 
         this.mazeMaterial = new THREE.MeshStandardMaterial({
             //side: THREE.DoubleSide
             color: 0x003049
@@ -443,7 +442,6 @@ class NewScene{
                         this.gltfMesh.receiveShadow = true
                         this.gltfMesh.castShadow = true
                         this.gltfMesh.material = this.mazeMaterial
-                        this.g = this.gltfMesh
                     }
                     
                 })
@@ -752,8 +750,8 @@ class NewScene{
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
         this.renderer.setSize(window.innerWidth, window.innerHeight)
-        //this.renderer.render(this.scene, this.camera)
-        this.renderer.outputEncoding = THREE.sRGBEncoding
+        this.renderer.render(this.scene, this.camera)
+        //this.renderer.outputEncoding = THREE.sRGBEncoding
     }
 
     InitCamera(){
@@ -763,7 +761,7 @@ class NewScene{
         this.chaseCam = new THREE.Object3D()
         this.chaseCam.position.set(0, 0, 0)
         this.chaseCamPivot = new THREE.Object3D()
-        this.chaseCamPivot.position.set(0, 10, 12)
+        this.chaseCamPivot.position.set(0, 30, 20)
         this.chaseCam.add(this.chaseCamPivot)
         this.scene.add(this.chaseCam)
     }
@@ -773,13 +771,13 @@ class NewScene{
         this.word = 'HAPPY'
         this.word2 = 'HALLOWEEN'
         this.fontLoader.load(
-            './Butcherman_Regular.json',
+            './EricaOne.json',
             (font) => {
                 this.textParameters = {
                     font: font,
                     size: 8.0,
                     height: 3.2,
-                    curveSegments: 12,
+                    curveSegments: 2,
                     bevelEnabled: true,
                     bevelThickness: 0.03,
                     bevelSize: 0.02,
@@ -787,60 +785,55 @@ class NewScene{
                     bevelSegments: 5
                 }
             
-                for (let i = 0; i <= this.word2.length -1; i++){
-                    this.textGeometry = new THREE.TextGeometry(
-                        this.word2[i],
-                        this.textParameters
-                    )
-                    this.textMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 })
-                    this.text = new THREE.Mesh(this.textGeometry, this.textMaterial)
-                    this.scene.add(this.text)
-                    this.text.castShadow = true
-                    this.textGeometry.computeBoundingBox()
-                    this.textGeometry.center()
-                    this.text.position.set(0, 0, 0)
+               
+                this.textGeometry = new THREE.TextGeometry(
+                    this.word,
+                    this.textParameters
+                )
+                this.textMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 })
+                this.text = new THREE.Mesh(this.textGeometry, this.textMaterial)
+                this.scene.add(this.text)
+                this.text.castShadow = true
+                this.textGeometry.computeBoundingBox()
+                this.textGeometry.center()
+                this.text.position.set(0, 0, 0)
 
-                    this.boxShape = new CANNON.Box(new CANNON.Vec3(4.0, 4.25, 5.5))
-                    this.boxBody = new CANNON.Body({
-                    mass: 0.1, 
-                    position: new CANNON.Vec3((i *8.5) , 10, i * 5),
-                    shape: this.boxShape,
-                    material: this.ContactMaterial
-                    })
-                    this.world.addBody(this.boxBody)
-                    this.boxBody.allowSleep = true
-                    this.objectsToUpdate.push({
-                    mesh: this.text,
-                    body: this.boxBody
-                    }) 
-                }
-                for (let i = 0; i <= this.word.length -1; i++){
-                    this.textGeometry = new THREE.TextGeometry(
-                        this.word[i],
-                        this.textParameters
-                    )
-                    this.textMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 })
-                    this.text = new THREE.Mesh(this.textGeometry, this.textMaterial)
-                    this.scene.add(this.text)
-                    this.text.castShadow = true
-                    this.textGeometry.computeBoundingBox()
-                    this.textGeometry.center()
-                    this.text.position.set(0, 0, 0)
-
-                    this.boxShape = new CANNON.Box(new CANNON.Vec3(4.0, 4.25, 3.0))
-                    this.boxBody = new CANNON.Body({
-                    mass: 0.1, 
-                    position: new CANNON.Vec3((i * 8.5) - 50, 10, i * -5 + 25),
-                    shape: this.boxShape,
-                    material: this.ContactMaterial
-                    })
-                    this.world.addBody(this.boxBody)
-                    this.boxBody.allowSleep = true
-                    this.objectsToUpdate.push({
-                    mesh: this.text,
-                    body: this.boxBody
-                    }) 
-                }
+                this.boxShape = new CANNON.Box(new CANNON.Vec3(20, 4, 2.5))
+                this.boxBody = new CANNON.Body({
+                mass: 20, 
+                position: new CANNON.Vec3(0, 20, 0),
+                shape: this.boxShape,
+                material: this.ContactMaterial
+                })
+                this.world.addBody(this.boxBody)
+                this.boxBody.allowSleep = true
+                this.objectsToUpdate.push({
+                mesh: this.text,
+                body: this.boxBody
+                })
+                
+                this.text2Geometry = new THREE.TextGeometry(
+                    this.word2,
+                    this.textParameters
+                )
+                this.text2 = new THREE.Mesh(this.text2Geometry, this.textMaterial)
+                this.scene.add(this.text2)
+                this.text2Geometry.computeBoundingBox()
+                this.text2Geometry.center()
+                this.box2Shape = new CANNON.Box(new CANNON.Vec3(35, 4, 2.5))
+                this.box2Body = new CANNON.Body({
+                mass: 20, 
+                position: new CANNON.Vec3(0, 10, 0),
+                shape: this.box2Shape,
+                material: this.ContactMaterial
+                })
+                this.world.addBody(this.box2Body)
+                this.box2Body.allowSleep = true
+                this.objectsToUpdate.push({
+                mesh: this.text2,
+                body: this.box2Body
+                })
+                
             }
         )
     }
@@ -848,49 +841,28 @@ class NewScene{
     InitLights(){
         this.ambientLight = new THREE.AmbientLight(0xffffff, 0.1)
         this.scene.add(this.ambientLight)
-        this.pointLight = new THREE.PointLight(0xffffff, 1)
+        this.pointLight = new THREE.PointLight(0xffffff, 0.8)
         this.scene.add(this.pointLight)
         //this.directionalLight = new THREE.DirectionalLight(0xffffff, 0.1)
         //this.scene.add(this.directionalLight)
         //this.directionalLight.position.set(0, 500, 500)
-        this.pointLight.position.set(20, 50, 20)
-        this.pointLight.castShadow = true
-        this.pointLight.shadow.mapSize.width = 512;
-        this.pointLight.shadow.mapSize.height = 512;
+        this.pointLight.position.set(0, 150, 0)
+        this.pointLight.castShadow = false
+        //this.pointLight.shadow.mapSize.width = 512;
+        //this.pointLight.shadow.mapSize.height = 512;
         this.headLight = new THREE.PointLight(0xffffff, 1.0,30, 1)
         this.headLight2 = new THREE.PointLight(0xffffff, 1.0,30, 1)
         this.headLightHelper = new THREE.PointLightHelper(this.headLight, 0xff00ff, 0.3)
         //this.group.add(this.headLightHelper)
         this.headLight.position.set(-1.5, 0.5,-10)
         this.headLight2.position.set(1.5, 0.5,-10)
-        //this.rectAreaLight = new THREE.RectAreaLight(0xffffff, 2.5, 200, 50)
-        //this.scene.add(this.rectAreaLight)
-        //this.rectAreaLight.position.set(0, 0, 50)
+        this.rectAreaLight = new THREE.RectAreaLight(0xffffff, 5.0, 80, 25)
+        this.scene.add(this.rectAreaLight)
+        this.rectAreaLight.position.set(0, 0, 25)
         
         this.group.add(this.headLight)
         this.group.add(this.headLight2)
         this.headLight.rotation.x = Math.PI * 0.5
-    }
-
-    InitBloom(){
-        this.params = {
-            exposure: 0.5,
-            bloomStrength: 0.5,
-            bloomThreshold: 0.1,
-            bloomRadius: 0.01
-        }
-        this.renderScene = new RenderPass(this.scene, this.camera)
-        this.bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.5, 0.5, 0.85)
-        this.bloomPass.threshold = this.params.bloomThreshold
-        this.bloomPass.strength = this.params.bloomStrength
-        this.bloomPass.radius = this.params.bloomRadius
-
-        this.composer = new EffectComposer(this.renderer)
-        this.composer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-        this.composer.setSize(window.innerWidth, window.innerHeight)
-        this.composer.addPass(this.renderScene)
-        this.composer.addPass(this.bloomPass)
-        this.composer.render()
     }
 
     InitControls(){
@@ -904,7 +876,6 @@ class NewScene{
         this.camera.aspect = window.innerWidth / window.innerHeight
         this.camera.updateProjectionMatrix()
         this.renderer.setSize(window.innerWidth, window.innerHeight)
-        this.composer.setSize(window.innerWidth, window.innerHeight)
     }
 
     Update(){
@@ -983,9 +954,8 @@ class NewScene{
 
             this.firefliesMaterial.uniforms.u_time.value += this.clock.getDelta()
             
-            //this.renderer.render(this.scene, this.camera)
-            this.composer.render()
-            //this.controls.update()
+            this.renderer.render(this.scene, this.camera)
+            this.controls.update()
             this.stats.end()
             this.Update()
         })  
