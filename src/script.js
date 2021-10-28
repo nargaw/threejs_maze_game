@@ -5,8 +5,10 @@ import * as CANNON from 'cannon-es'
 import cannonDebugger from 'cannon-es-debugger'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import Stats from 'stats.js'
-import fragment from './shaders/fragment.glsl'
-import vertex from './shaders/vertex.glsl'
+import fragment from './firefliesShader/fragment.glsl'
+import vertex from './firefliesShader/vertex.glsl'
+import overlayFragment from './firefliesShader/fragment.glsl'
+import overlayVertex from './firefliesShader/vertex.glsl'
 const canvas = document.querySelector('.webgl')
 
 class NewScene{
@@ -24,6 +26,7 @@ class NewScene{
         this.forwardVel = 0
         this.rightVel = 0
         this.objectsToUpdate = []
+        this.pumpkinsToUpdate = []
         this.cams = [this.birdeyeView, this.closeupView]
         this.currentCam = this.cams[Math.round(Math.random(this.cams.length))]
         this.clickMap = {}
@@ -33,13 +36,17 @@ class NewScene{
         this.thrusting = false
         this.logEvents = false
         this.tpCache = new Array()
+        
         this.InitStats()
+        this.InitTextures()
         this.InitCarControls()
         this.InitPhysics()
-        //this.InitPhysicsDebugger()
+        this.InitPhysicsDebugger()
         this.InitEnv()
         this.InitFireFlies()
+        this.Loading()
         this.InitCamera()
+        this.InitPumpkins()
         this.InitCar()
         this.InitText()
         this.InitSound()
@@ -48,6 +55,7 @@ class NewScene{
         this.InitLights()
         this.InitRenderer()
         this.InitControls()
+        
         window.addEventListener('resize', () => {
             this.Resize()
             this.renderer.render(this.scene, this.camera)
@@ -62,7 +70,21 @@ class NewScene{
         this.Update()
     }
 
-     InitStats(){
+    Loading(){
+        this.overlayGeometry = new THREE.PlaneGeometry(2, 2, 1, 1)
+        this.overlayMaterial = new THREE.ShaderMaterial({
+            transparent: true,
+            vertexShader: overlayVertex,
+            fragmentShader: overlayFragment,
+            uniforms: {
+                u_alpha: { value: 1}
+            }
+        })
+        this.overlay = new THREE.Mesh(this.overlayGeometry, this.overlayMaterial)
+        this.scene.add(this.overlay)
+    }
+
+    InitStats(){
         this.stats = new Stats()
         this.stats.showPanel(0)
         document.body.appendChild(this.stats.dom)
@@ -112,6 +134,31 @@ class NewScene{
         this.playSound()
     }
 
+    //3d texutres (https://3dtextures.me/)
+    InitTextures(){
+        this.loadingManager = new THREE.LoadingManager()
+        this.textureLoader = new THREE.TextureLoader(this.loadingManager)
+        this.loadingManager.onStart= () => {
+            console.log('loading started')
+        }
+        this.loadingManager.onLoad = () => {
+            console.log('loading finsihed')
+        }
+        this.loadingManager.onProgress = () => {
+            console.log('loading in progress...')
+        }
+        this.loadingManager.onError = () => {
+            console.log('error occured')
+        }
+
+        this.pumpkinColorTexture = this.textureLoader.load('/pumpkin/baseColor.jpg')
+        this.pumpkinAmbientOcclusionTexture = this.textureLoader.load('/pumpkin/ambientOcclusion.jpg')
+        this.pumpkinHeightTexture = this.textureLoader.load('/pumpkin/height.png')
+        this.pumpkinRoughnessTexture = this.textureLoader.load('/pumpkin/roughness.jpg')
+        this.pumpkinNormalTexture = this.textureLoader.load('/pumpkin/normal.jpg')
+
+    }
+
     InitPhysics(){
         this.world = new CANNON.World()
         this.world.gravity.set(0, -40, 0)
@@ -125,7 +172,7 @@ class NewScene{
             }
         )
         this.world.broadphase = new CANNON.SAPBroadphase(this.world)
-        //this.world.allowSleep = true
+        this.world.allowSleep = true
         this.world.defaultContactMaterial = this.defaultContactMaterial
         this.world.addContactMaterial(this.defaultContactMaterial)
     }
@@ -174,7 +221,7 @@ class NewScene{
 
     InitEnv(){
         this.fog = new THREE.FogExp2(0x272640, 0.005)
-        this.scene.fog = this.fog
+        //this.scene.fog = this.fog
         this.geometry = new THREE.PlaneBufferGeometry(1100, 1100, 2, 2)
         this.material = new THREE.MeshStandardMaterial({
             color: 0x144552,
@@ -193,6 +240,57 @@ class NewScene{
         this.world.addBody(this.groundBody)
         this.groundBody.addShape(new CANNON.Plane())
         this.groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(-1, 0, 0), Math.PI * 0.5)
+    }
+
+    InitPumpkins(){
+        this.pumpkinGroup = new THREE.Group()
+        this.scene.add(this.pumpkinGroup)  
+        this.pumpkinGeometry = new THREE.TorusGeometry(1.25, 2.4, 14, 18, 6.3)
+        this.pumpkinMaterial = new THREE.MeshStandardMaterial({ 
+            map: this.pumpkinColorTexture,
+            transparent: true,
+            aoMap: this.pumpkinAmbientOcclusionTexture,
+            displacementMap: this.pumpkinHeightTexture,
+            displacementScale: 2,
+            displacementBias: 1,
+            normalMap: this.pumpkinNormalTexture,
+            roughnessMap: this.pumpkinRoughnessTexture
+            
+        })
+
+        
+        this.pumpkinShape = new CANNON.Sphere(5)
+        for (let i = 0; i <= 125; i++){
+            this.angle = Math.random() * Math.PI * 2
+            this.radius = 25 + Math.random() * 500
+            this.x = Math.cos(this.angle) * this.radius
+            this.z = Math.sin(this.angle) * this.radius
+
+            this.pumpkin = new THREE.Mesh(this.pumpkinGeometry, this.pumpkinMaterial)
+            
+            
+            this.pumpkinBody = new CANNON.Body({
+                mass: 1,
+                material: this.defaultMaterial,
+                shape: this.pumpkinShape,
+            })
+            this.pumpkinBody.addShape(new CANNON.Box(new CANNON.Vec3(2.5, 5, 2.5)))
+            this.pumpkinBody.quaternion.setFromAxisAngle(new CANNON.Vec3(-1, 0, 0), Math.PI * 0.5)
+            this.pumpkin.position.set(this.x, 100, this.z)
+            this.pumpkin.rotation.x = -Math.PI * 0.5
+            this.pumpkin.geometry.setAttribute('uv2', new THREE.Float32BufferAttribute(this.pumpkin.geometry.attributes.uv.array, 2))
+
+            this.pumpkinGroup.add(this.pumpkin)
+            this.world.addBody(this.pumpkinBody)
+            this.pumpkinBody.allowSleep = true
+            this.pumpkinBody.position.copy(this.pumpkin.position)
+            this.pumpkinsToUpdate.push({
+                mesh: this.pumpkin,
+                body: this.pumpkinBody
+            })
+            this.pumpkinBody.sleepSpeedLimit = 0.5
+            
+        } 
     }
 
     InitCar(){
@@ -226,13 +324,14 @@ class NewScene{
         })
         this.carBody.addShape(this.carBodyShape)
         this.world.addBody(this.carBody)
+        
         this.carBody.position.copy(this.group.position)
         this.carBody.angularDamping = 0.9
         this.objectsToUpdate.push({
             mesh: this.group,
             body: this.carBody
         })
-
+        this.carBody.allowSleep = false
         this.wheelGeometry = new THREE.CylinderBufferGeometry(0.99, 0.99, 0.6)
         this.wheelGeometry.rotateZ(Math.PI * 0.5)
         //Left Front Wheel
@@ -244,6 +343,7 @@ class NewScene{
             mass: 1,
             material: this.defaultMaterial
         })
+        this.wheelsFLBody.allowSleep = false
         this.wheelsFLBody.addShape(this.wheelsFLShape)
         this.wheelsFLBody.position.copy(this.wheelsFL.position)
         this.world.addBody(this.wheelsFLBody)
@@ -267,6 +367,7 @@ class NewScene{
         this.wheelsFRBody.addShape(this.wheelsFRShape)
         this.wheelsFRBody.position.copy(this.wheelsFR.position)
         this.world.addBody(this.wheelsFRBody)
+        this.wheelsFRBody.allowSleep = false
         this.wheelsFRBody.angularDamping = 0.4
         this.wheelsFRBody.applyLocalForce = 20
         this.objectsToUpdate.push({
@@ -286,6 +387,7 @@ class NewScene{
         this.wheelsBLBody.addShape(this.wheelsBLShape)
         this.wheelsBLBody.position.copy(this.wheelsBL.position)
         this.world.addBody(this.wheelsBLBody)
+        this.wheelsBLBody.allowSleep = false
         this.wheelsBLBody.angularDamping = 0.4
         this.objectsToUpdate.push({
             mesh: this.wheelsBL,
@@ -305,6 +407,7 @@ class NewScene{
         this.wheelsBRBody.addShape(this.wheelsBRShape)
         this.wheelsBRBody.position.copy(this.wheelsBR.position)
         this.world.addBody(this.wheelsBRBody)
+        this.wheelsBRBody.allowSleep = false
         this.wheelsBRBody.angularDamping = 0.4
         this.objectsToUpdate.push({
             mesh: this.wheelsBR,
@@ -782,8 +885,8 @@ class NewScene{
             (font) => {
                 this.textParameters = {
                     font: font,
-                    size: 8.0,
-                    height: 3.2,
+                    size: 16.0,
+                    height: 6,
                     curveSegments: 2,
                     bevelEnabled: true,
                     bevelThickness: 0.03,
@@ -805,10 +908,10 @@ class NewScene{
                 this.textGeometry.center()
                 this.text.position.set(0, 0, 0)
 
-                this.boxShape = new CANNON.Box(new CANNON.Vec3(20, 4, 2.5))
+                this.boxShape = new CANNON.Box(new CANNON.Vec3(40, 7.5, 5))
                 this.boxBody = new CANNON.Body({
                 mass: 200, 
-                position: new CANNON.Vec3(0, 20, 0),
+                position: new CANNON.Vec3(0, 30, 0),
                 shape: this.boxShape,
                 material: this.ContactMaterial
                 })
@@ -827,7 +930,7 @@ class NewScene{
                 this.scene.add(this.text2)
                 this.text2Geometry.computeBoundingBox()
                 this.text2Geometry.center()
-                this.box2Shape = new CANNON.Box(new CANNON.Vec3(35, 4, 2.5))
+                this.box2Shape = new CANNON.Box(new CANNON.Vec3(68, 7.5, 5))
                 this.box2Body = new CANNON.Body({
                 mass: 20, 
                 position: new CANNON.Vec3(0, 10, 0),
@@ -924,14 +1027,19 @@ class NewScene{
             this.oldElapsedTime = this.elapsedTime
             this.world.step(1/60, this.oldElapsedTime, 3)
 
-            this.camera.lookAt(this.group.position)
+            //this.camera.lookAt(this.group.position)
 
             this.chaseCamPivot.getWorldPosition(this.v)
             if (this.v.y < 1){
                 this.v.y = 1
             }
-            this.camera.position.lerpVectors(this.camera.position, this.v, 0.1)
+            //this.camera.position.lerpVectors(this.camera.position, this.v, 0.1)
             for(this.object of this.objectsToUpdate){
+                this.object.mesh.position.copy(this.object.body.position)
+                this.object.mesh.quaternion.copy(this.object.body.quaternion)
+            }
+
+            for(this.object of this.pumpkinsToUpdate){
                 this.object.mesh.position.copy(this.object.body.position)
                 this.object.mesh.quaternion.copy(this.object.body.quaternion)
             }
@@ -991,7 +1099,7 @@ class NewScene{
             this.constraintFL.axisA.z = this.rightVel
             this.constraintFR.axisA.z = this.rightVel
 
-            if (this.clickMap['5']){
+            if (this.clickMap['5'] || this.hoverTouch['5']){
                 if (this.currentCam === this.birdeyeView){
                     this.chaseCamPivot.position.copy(this.closeupView)
                     this.currentCam = this.closeupView
@@ -1007,6 +1115,7 @@ class NewScene{
             
             this.renderer.render(this.scene, this.camera)
             this.controls.update()
+            //console.log(this.pumpkinBody.sleepState)
             this.stats.end()
             this.Update()
         })  
