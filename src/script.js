@@ -7,8 +7,6 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import Stats from 'stats.js'
 import fragment from './firefliesShader/fragment.glsl'
 import vertex from './firefliesShader/vertex.glsl'
-import overlayFragment from './firefliesShader/fragment.glsl'
-import overlayVertex from './firefliesShader/vertex.glsl'
 const canvas = document.querySelector('.webgl')
 
 class NewScene{
@@ -17,18 +15,20 @@ class NewScene{
     }
     
     _Init(){
+        
         this.scene = new THREE.Scene()
         this.clock = new THREE.Clock()
         this.v = new THREE.Vector3()
-        this.birdeyeView = new THREE.Vector3(0, 50, 30)
-        this.closeupView = new THREE.Vector3(0, 8, 12)
+        this.birdeyeView = new THREE.Vector3(0, 60, 50)
+        this.closeupView = new THREE.Vector3(0, 5, 12)
         this.oldElapsedTime = 0
         this.forwardVel = 0
         this.rightVel = 0
         this.objectsToUpdate = []
         this.pumpkinsToUpdate = []
         this.cams = [this.birdeyeView, this.closeupView]
-        this.currentCam = this.cams[Math.round(Math.random(this.cams.length))]
+        this.currentCam = this.birdeyeView
+        this.pressMap = {}
         this.clickMap = {}
         this.keyMap = {}
         this.hoverMap = {}
@@ -36,25 +36,25 @@ class NewScene{
         this.thrusting = false
         this.logEvents = false
         this.tpCache = new Array()
-        
-        this.InitStats()
+    
+        //this.InitStats()
         this.InitTextures()
         this.InitCarControls()
         this.InitPhysics()
-        this.InitPhysicsDebugger()
+        //this.InitPhysicsDebugger()
         this.InitEnv()
         this.InitFireFlies()
-        this.Loading()
         this.InitCamera()
         this.InitPumpkins()
         this.InitCar()
         this.InitText()
+        this.InitWelcomeText()
         this.InitSound()
         this.InitMaze()
         this.InitDirections()
         this.InitLights()
         this.InitRenderer()
-        this.InitControls()
+        //this.InitControls()
         
         window.addEventListener('resize', () => {
             this.Resize()
@@ -67,21 +67,8 @@ class NewScene{
         document.addEventListener('touchend', this.onDocumentTouch, {passive: false}, false)
         document.addEventListener('mouseover', this.onDocumentHover, false)
         document.addEventListener('mouseout', this.onDocumentHover, false)
+        document.addEventListener('touchstart', this.onDocumentPress, {passive: false})
         this.Update()
-    }
-
-    Loading(){
-        this.overlayGeometry = new THREE.PlaneGeometry(2, 2, 1, 1)
-        this.overlayMaterial = new THREE.ShaderMaterial({
-            transparent: true,
-            vertexShader: overlayVertex,
-            fragmentShader: overlayFragment,
-            uniforms: {
-                u_alpha: { value: 1}
-            }
-        })
-        this.overlay = new THREE.Mesh(this.overlayGeometry, this.overlayMaterial)
-        this.scene.add(this.overlay)
     }
 
     InitStats(){
@@ -113,13 +100,18 @@ class NewScene{
             e.preventDefault()
             this.clickMap[e.target.id] = e.type === 'click'
         }
+
+        this.onDocumentPress = (e) => {
+            e.preventDefault()
+            this.pressMap[e.target.id] = e.type === 'touchstart'
+        }
     }
 
     InitSound(){
         this.audioOne = new Audio('scarecrow.mp3')
         this.audioTwo = new Audio('werewolf.mp3')
         this.playSound = () => {
-            this.audioOne.volume = 0.05
+            this.audioOne.volume = 0.035
             this.audioOne.currentTime = 0
             this.audioOne.autoplay = true
             this.audioOne.play()
@@ -139,16 +131,16 @@ class NewScene{
         this.loadingManager = new THREE.LoadingManager()
         this.textureLoader = new THREE.TextureLoader(this.loadingManager)
         this.loadingManager.onStart= () => {
-            console.log('loading started')
+            //console.log('loading started')
         }
         this.loadingManager.onLoad = () => {
-            console.log('loading finsihed')
+            //console.log('loading finsihed')
         }
         this.loadingManager.onProgress = () => {
-            console.log('loading in progress...')
+           // console.log('loading in progress...')
         }
         this.loadingManager.onError = () => {
-            console.log('error occured')
+           // console.log('error occured')
         }
 
         this.pumpkinColorTexture = this.textureLoader.load('/pumpkin/baseColor.jpg')
@@ -260,7 +252,7 @@ class NewScene{
 
         
         this.pumpkinShape = new CANNON.Sphere(5)
-        for (let i = 0; i <= 125; i++){
+        for (let i = 0; i <= 50; i++){
             this.angle = Math.random() * Math.PI * 2
             this.radius = 25 + Math.random() * 500
             this.x = Math.cos(this.angle) * this.radius
@@ -322,6 +314,7 @@ class NewScene{
             mass: 40,
             material: this.defaultMaterial
         })
+        this.carBody.addShape(new CANNON.Sphere(2.5), new CANNON.Vec3(0, 1.8, 0))
         this.carBody.addShape(this.carBodyShape)
         this.world.addBody(this.carBody)
         
@@ -539,7 +532,7 @@ class NewScene{
             //side: THREE.DoubleSide
             color: 0x003049
         })
-        this.gltfLoader = new GLTFLoader()
+        this.gltfLoader = new GLTFLoader(this.loadingManager)
         this.gltfLoader.load(
             'maze2.glb',
             (gltf) => {
@@ -942,20 +935,23 @@ class NewScene{
                 this.objectsToUpdate.push({
                 mesh: this.text2,
                 body: this.box2Body
-                })
-
-                this.textBackWallGeometry = new THREE.TextGeometry(
-                    'Experience Created By:', 
-                    this.textParameters
-                )
-                this.textBackWallGeometry.scale(0.5, 0.5, 0.5)
-                this.textBackWallGeometry.computeBoundingBox()
-                this.textBackWallGeometry.center()
-                this.textBackWall = new THREE.Mesh(this.textBackWallGeometry, new THREE.MeshStandardMaterial({color: 0x00f5d4}))
-                this.scene.add(this.textBackWall)
-                this.textBackWall.position.set(0, 25, -152)
-                //this.textBackWall.rotation.x = -Math.PI
-                this.textBackWall.castShadow = true
+                })    
+            }
+        )
+        this.fontLoader.load(
+            './Lato Light_Italic.json',
+            (font) => {
+                this.textParameters = {
+                    font: font,
+                    size: 16.0,
+                    height: 6,
+                    curveSegments: 2,
+                    bevelEnabled: true,
+                    bevelThickness: 0.03,
+                    bevelSize: 0.02,
+                    bevelOffset: 0,
+                    bevelSegments: 5
+                }
 
                 this.textBackWallGeometry2 = new THREE.TextGeometry(
                     '@nate_dev_', 
@@ -966,10 +962,136 @@ class NewScene{
                 this.textBackWallGeometry2.center()
                 this.textBackWall2 = new THREE.Mesh(this.textBackWallGeometry2, new THREE.MeshStandardMaterial({color: 0x00f5d4}))
                 this.scene.add(this.textBackWall2)
-                this.textBackWall2.position.set(0, 15, -152)
+                this.textBackWall2.position.set(0, 20, -152)
                 //this.textBackWall.rotation.x = -Math.PI
                 this.textBackWall2.castShadow = true
-                
+            }
+        )
+    }
+
+    InitWelcomeText(){
+        this.fontLoader = new THREE.FontLoader()
+        this.welcomeTextOne = 'WELCOME'
+        this.welcomeTextTwo = 'TOTHE'
+        this.welcomeTextThree = 'MAZE'
+        this.fontLoader.load(
+            './EricaOne.json',
+            (font) => {
+                this.textParameters = {
+                    font: font,
+                    size: 4.0,
+                    height: 3,
+                    curveSegments: 12,
+                    bevelEnabled: true,
+                    bevelThickness: 0.03,
+                    bevelSize: 0.02,
+                    bevelOffset: 0,
+                    bevelSegments: 5
+                }
+                this.textParameters2 = {
+                    font: font,
+                    size: 6.0,
+                    height: 3,
+                    curveSegments: 12,
+                    bevelEnabled: true,
+                    bevelThickness: 0.03,
+                    bevelSize: 0.02,
+                    bevelOffset: 0,
+                    bevelSegments: 5
+                }
+
+                this.textParameters3 = {
+                    font: font,
+                    size: 9.0,
+                    height: 3,
+                    curveSegments: 12,
+                    bevelEnabled: true,
+                    bevelThickness: 0.03,
+                    bevelSize: 0.02,
+                    bevelOffset: 0,
+                    bevelSegments: 5
+                }
+            
+                for (let i = 0; i <= this.welcomeTextOne.length -1; i++){
+                    this.welcomeTextGeometry = new THREE.TextGeometry(
+                        this.welcomeTextOne[i],
+                        this.textParameters
+                    )
+                    this.welcomeTextMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 })
+                    this.welcomeText1 = new THREE.Mesh(this.welcomeTextGeometry, this.welcomeTextMaterial)
+                    this.scene.add(this.welcomeText1)
+                    this.welcomeText1.castShadow = true
+                    this.welcomeTextGeometry.computeBoundingBox()
+                    this.welcomeTextGeometry.center()
+                    this.welcomeText1.position.set(0, -0.1, 0)
+
+                    this.welcomeBoxShape = new CANNON.Box(new CANNON.Vec3(2.0, 2.0, 2.0))
+                    this.welcomeBox = new CANNON.Body({
+                    mass: 0.5, 
+                    position: new CANNON.Vec3((i * 4) - 12, 18, 415),
+                    shape: this.welcomeBoxShape,
+                    material: this.ContactMaterial
+                    })
+                    this.world.addBody(this.welcomeBox)
+                    this.objectsToUpdate.push({
+                    mesh: this.welcomeText1,
+                    body: this.welcomeBox
+                    }) 
+                }
+
+                for (let i = 0; i <= this.welcomeTextTwo.length -1; i++){
+                    this.welcomeTextGeometry = new THREE.TextGeometry(
+                        this.welcomeTextTwo[i],
+                        this.textParameters2
+                    )
+                    this.welcomeTextMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 })
+                    this.welcomeText1 = new THREE.Mesh(this.welcomeTextGeometry, this.welcomeTextMaterial)
+                    this.scene.add(this.welcomeText1)
+                    this.welcomeText1.castShadow = true
+                    this.welcomeTextGeometry.computeBoundingBox()
+                    this.welcomeTextGeometry.center()
+                    this.welcomeText1.position.set(0, -0.1, 0)
+
+                    this.welcomeBoxShape = new CANNON.Box(new CANNON.Vec3(3.0, 3.0, 2.0))
+                    this.welcomeBox = new CANNON.Body({
+                    mass: 0.5, 
+                    position: new CANNON.Vec3((i * 6.5) - 12, 12, 415),
+                    shape: this.welcomeBoxShape,
+                    material: this.ContactMaterial
+                    })
+                    this.world.addBody(this.welcomeBox)
+                    this.objectsToUpdate.push({
+                    mesh: this.welcomeText1,
+                    body: this.welcomeBox
+                    }) 
+                }
+
+                for (let i = 0; i <= this.welcomeTextThree.length -1; i++){
+                    this.welcomeTextGeometry = new THREE.TextGeometry(
+                        this.welcomeTextThree[i],
+                        this.textParameters3
+                    )
+                    this.welcomeTextMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 })
+                    this.welcomeText1 = new THREE.Mesh(this.welcomeTextGeometry, this.welcomeTextMaterial)
+                    this.scene.add(this.welcomeText1)
+                    this.welcomeText1.castShadow = true
+                    this.welcomeTextGeometry.computeBoundingBox()
+                    this.welcomeTextGeometry.center()
+                    this.welcomeText1.position.set(0, -0.1, 0)
+
+                    this.welcomeBoxShape = new CANNON.Box(new CANNON.Vec3(4.5, 4.5, 2.0))
+                    this.welcomeBox = new CANNON.Body({
+                    mass: 0.5, 
+                    position: new CANNON.Vec3((i * 9) - 12, 5, 415),
+                    shape: this.welcomeBoxShape,
+                    material: this.ContactMaterial
+                    })
+                    this.world.addBody(this.welcomeBox)
+                    this.objectsToUpdate.push({
+                    mesh: this.welcomeText1,
+                    body: this.welcomeBox
+                    }) 
+                }
             }
         )
     }
@@ -1021,19 +1143,19 @@ class NewScene{
 
     Update(){
         requestAnimationFrame(() => {
-            this.stats.begin()     
+            //this.stats.begin()     
             this.elapsedTime = this.clock.getElapsedTime()
             this.deltaTime = this.elapsedTime - this.oldElapsedTime
             this.oldElapsedTime = this.elapsedTime
             this.world.step(1/60, this.oldElapsedTime, 3)
 
-            //this.camera.lookAt(this.group.position)
+            this.camera.lookAt(this.group.position)
 
             this.chaseCamPivot.getWorldPosition(this.v)
             if (this.v.y < 1){
                 this.v.y = 1
             }
-            //this.camera.position.lerpVectors(this.camera.position, this.v, 0.1)
+            this.camera.position.lerpVectors(this.camera.position, this.v, 0.1)
             for(this.object of this.objectsToUpdate){
                 this.object.mesh.position.copy(this.object.body.position)
                 this.object.mesh.quaternion.copy(this.object.body.quaternion)
@@ -1099,24 +1221,26 @@ class NewScene{
             this.constraintFL.axisA.z = this.rightVel
             this.constraintFR.axisA.z = this.rightVel
 
-            if (this.clickMap['5'] || this.hoverTouch['5']){
+            if (this.clickMap['5'] || this.pressMap['5']){
                 if (this.currentCam === this.birdeyeView){
                     this.chaseCamPivot.position.copy(this.closeupView)
                     this.currentCam = this.closeupView
                     this.clickMap = {}
+                    this.pressMap = {}
                 } else {
                     this.chaseCamPivot.position.copy(this.birdeyeView)
                     this.currentCam = this.birdeyeView
                     this.clickMap = {}
+                    this.pressMap = {}
                 }
             }
 
             this.firefliesMaterial.uniforms.u_time.value += this.clock.getDelta()
             
             this.renderer.render(this.scene, this.camera)
-            this.controls.update()
+            //this.controls.update()
             //console.log(this.pumpkinBody.sleepState)
-            this.stats.end()
+            //this.stats.end()
             this.Update()
         })  
     }
