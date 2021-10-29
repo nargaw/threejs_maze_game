@@ -68,6 +68,7 @@ class NewScene{
         document.addEventListener('mouseover', this.onDocumentHover, false)
         document.addEventListener('mouseout', this.onDocumentHover, false)
         document.addEventListener('touchstart', this.onDocumentPress, {passive: false})
+        document.addEventListener('contextmenu', event => event.preventDefault())
         this.Update()
     }
 
@@ -1168,7 +1169,7 @@ class NewScene{
             this.thrusting = false
 
             if (this.keyMap['w'] || this.hoverMap['3']  || this.hoverTouch['3']|| this.keyMap['ArrowUp']){
-                if(this.forwardVel < 12.5){
+                if(this.forwardVel < 10.0){
                     this.forwardVel += 0.5
                     this.thrusting = true
                 } 
